@@ -134,10 +134,10 @@
                 });
 
                 // Сообщаем пользователю
-                status.textContent = "✅ Платёж успешно отправлен!";
+                status.textContent = "✅ Платёж успешно отправлен! Отправка данных...";
                 status.style.background = "#4CAF50";
 
-                // НОВЫЙ КОД: Отправляем данные боту через tg.sendData()
+                // Отправляем данные боту через tg.sendData()
                 if (userId) {
                     const dataToSend = JSON.stringify({
                         transactionTime: transactionTime,
@@ -148,10 +148,11 @@
                         userTelegramId: userId
                     });
                     
-                    //tg.sendData(dataToSend);
+                    // Отправляем данные и WebApp автоматически закроется
+                    tg.sendData(dataToSend);
+                } else {
+                    throw new Error("Не удалось получить ID пользователя");
                 }
-
-                setTimeout(() => tg.close(), 2500);
 
             } catch (error) {
                 console.error("Ошибка:", error);
