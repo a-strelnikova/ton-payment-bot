@@ -125,6 +125,16 @@
                 const txHash = result.boc.slice(0, 20) + "...";
                 const walletAddress = tonConnectUI.account?.address || "неизвестно";
 
+                // Получаем текущее время транзакции
+                const transactionTime = new Date().toLocaleString('ru-RU', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
                 // Сообщаем пользователю
                 status.textContent = "✅ Платёж успешно отправлен!";
                 status.style.background = "#4CAF50";
@@ -136,7 +146,13 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             chat_id: userId,
-                            text: `💰 Оплата успешно выполнена!\n\nHash: ${txHash}\nСумма: ${AMOUNT_TON} TON\nОт: ${walletAddress}`
+                            text: `💰 Оплата успешно выполнена!\n\n` +
+                                  `📅 Время: ${transactionTime}\n` +
+                                  `💎 Сумма: ${AMOUNT_TON} TON\n` +
+                                  `📤 От кошелька: ${walletAddress}\n` +
+                                  `📥 Получатель: ${RECIPIENT}\n` +
+                                  `🔗 Hash: ${txHash}\n` +
+                                  `👤 Telegram ID: ${userId}`
                         })
                     });
                 }
