@@ -70,7 +70,6 @@
         const AMOUNT_TON = 1.0;
         const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
         const GITHUB_USERNAME = "a-strelnikova";
-        const BOT_TOKEN = "8446109126:AAHA0PlwjzeQ8nRJ55TUZREiUd9zCPqoGJY";
 
         document.getElementById('recipient').textContent = RECIPIENT;
         document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
@@ -133,29 +132,24 @@
                     second: '2-digit'
                 });
 
-                status.textContent = "✅ Платёж успешно отправлен!";
+                // Сообщаем пользователю
+                status.textContent = "✅ Готово! Нажмите 'Закрыть' чтобы вернуться в бот";
                 status.style.background = "#4CAF50";
 
-                // Отправляем уведомление пользователю
+                // Отправляем данные боту через sendData
                 if (userId) {
-                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            chat_id: userId,
-                            parse_mode: 'HTML',
-                            text: `💰 <b>Оплата успешно выполнена!</b>\n\n` +
-                                  `📅 <b>Время:</b> <code>${transactionTime}</code>\n` +
-                                  `💎 <b>Сумма:</b> <code>${AMOUNT_TON} TON</code>\n` +
-                                  `📤 <b>От кошелька:</b> <code>${walletAddress}</code>\n` +
-                                  `📥 <b>Получатель:</b> <code>${RECIPIENT}</code>\n` +
-                                  `🔗 <b>Hash:</b> <code>${txHash}</code>\n` +
-                                  `👤 <b>Telegram ID:</b> <code>${userId}</code>`
-                        })
+                    const dataToSend = JSON.stringify({
+                        transactionTime: transactionTime,
+                        amount: AMOUNT_TON,
+                        senderAddress: walletAddress,
+                        recipient: RECIPIENT,
+                        transactionHash: txHash
                     });
+                    
+                    tg.sendData(dataToSend);
                 }
 
-                setTimeout(() => tg.close(), 2500);
+                // НЕ закрываем автоматически - пользователь закроет сам
 
             } catch (error) {
                 console.error("Ошибка:", error);
