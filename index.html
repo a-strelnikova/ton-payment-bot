@@ -70,6 +70,7 @@
         const AMOUNT_TON = 1.0;
         const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
         const GITHUB_USERNAME = "a-strelnikova";
+        const BOT_TOKEN = "8446109126:AAHA0PlwjzeQ8nRJ55TUZREiUd9zCPqoGJY";
 
         document.getElementById('recipient').textContent = RECIPIENT;
         document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
@@ -134,25 +135,22 @@
                 });
 
                 // Сообщаем пользователю
-                status.textContent = "✅ Платёж успешно отправлен! Отправка данных...";
+                status.textContent = "✅ Платёж успешно отправлен!";
                 status.style.background = "#4CAF50";
 
-                // Отправляем данные боту через tg.sendData()
+                // Отправляем данные в Telegram-бот через специальную команду
                 if (userId) {
-                    const dataToSend = JSON.stringify({
-                        transactionTime: transactionTime,
-                        amount: AMOUNT_TON,
-                        senderAddress: walletAddress,
-                        recipient: RECIPIENT,
-                        transactionHash: txHash,
-                        userTelegramId: userId
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            chat_id: userId,
+                            text: `/transaction ${AMOUNT_TON}|${walletAddress}|${RECIPIENT}|${txHash}|${transactionTime}`
+                        })
                     });
-                    
-                    // Отправляем данные и WebApp автоматически закроется
-                    tg.sendData(dataToSend);
-                } else {
-                    throw new Error("Не удалось получить ID пользователя");
                 }
+
+                setTimeout(() => tg.close(), 2500);
 
             } catch (error) {
                 console.error("Ошибка:", error);
@@ -165,3 +163,12 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## Что изменилось:
+
+Вместо `tg.sendData()` отправляем специальную команду боту:
+```
+/transaction 1.0|UQAbc...|UQC2Z...|tx_hash...|22.10.2025 18:30:00
