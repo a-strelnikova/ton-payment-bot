@@ -8,117 +8,149 @@
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: var(--tg-theme-bg-color, #ffffff); color: var(--tg-theme-text-color, #000000); min-height: 100vh; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            min-height: 100vh;
+        }
         .container { max-width: 400px; margin: 0 auto; }
         h2 { margin-bottom: 20px; font-size: 24px; }
-        .info-box { background: var(--tg-theme-secondary-bg-color, #f0f0f0); padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+        .info-box {
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
         .info-row { display: flex; justify-content: space-between; margin: 8px 0; }
         .label { color: var(--tg-theme-hint-color, #999); }
         .value { font-weight: 600; }
-        #status { padding: 15px; border-radius: 12px; margin: 15px 0; text-align: center; background: var(--tg-theme-secondary-bg-color, #f0f0f0); }
-        button { width: 100%; padding: 16px; margin: 10px 0; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
-        #ton-connect { background: var(--tg-theme-button-color, #0088cc); color: var(--tg-theme-button-text-color, #ffffff); }
+        #status {
+            padding: 15px; border-radius: 12px; margin: 15px 0; text-align: center;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+        }
+        button {
+            width: 100%; padding: 16px; margin: 10px 0; border: none;
+            border-radius: 12px; font-size: 16px; font-weight: 600;
+            cursor: pointer; transition: all 0.3s;
+        }
+        #ton-connect {
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+        }
         #sendButton { background: #4CAF50; color: white; display: none; }
         #sendButton:active { transform: scale(0.98); }
-        .address { font-family: monospace; font-size: 12px; word-break: break-all; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 5px; }
+        .address {
+            font-family: monospace; font-size: 12px; word-break: break-all;
+            background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 5px;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2>💎 Оплата TON</h2>
-    <div class="info-box">
-        <div class="info-row">
-            <span class="label">Получатель:</span>
+    <div class="container">
+        <h2>💎 Оплата TON</h2>
+        <div class="info-box">
+            <div class="info-row">
+                <span class="label">Получатель:</span>
+            </div>
+            <div class="address" id="recipient"></div>
+            <div class="info-row" style="margin-top: 15px;">
+                <span class="label">Сумма:</span>
+                <span class="value" id="amount"></span>
+            </div>
         </div>
-        <div class="address" id="recipient"></div>
-
-        <div class="info-row" style="margin-top: 15px;">
-            <span class="label">Сумма:</span>
-            <span class="value" id="amount"></span>
-        </div>
+        <div id="status">Подключите кошелёк для оплаты</div>
+        <div id="ton-connect"></div>
+        <button id="sendButton">Отправить платёж</button>
     </div>
 
-    <div id="status">Подключите кошелёк для оплаты</div>
-    <div id="ton-connect"></div>
-    <button id="sendButton">Отправить платёж</button>
-</div>
+    <script>
+        const RECIPIENT = "UQC2ZPhEjFTLew6ptFzUbjvFIjt9uMG1q2NSf1ap-IWMd8sM"; // адрес получателя
+        const AMOUNT_TON = 1.0;
+        const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
+        const GITHUB_USERNAME = "a-strelnikova";
+        const BOT_TOKEN = "8446109126:AAHA0PlwjzeQ8nRJ55TUZREiUd9zCPqoGJY";
 
-<script>
-    // Конфигурация
-    const RECIPIENT = "UQC2ZPhEjFTLew6ptFzUbjvFIjt9uMG1q2NSf1ap-IWMd8sM";
-    const AMOUNT_TON = 1.0;
-    const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
-    const GITHUB_USERNAME = "a-strelnikova";
+        document.getElementById('recipient').textContent = RECIPIENT;
+        document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
 
-    document.getElementById('recipient').textContent = RECIPIENT;
-    document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
 
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-    tg.ready();
+        const user = tg.initDataUnsafe?.user;
+        const userId = user ? user.id : null;
 
-    const status = document.getElementById('status');
-    const sendButton = document.getElementById('sendButton');
+        const status = document.getElementById('status');
+        const sendButton = document.getElementById('sendButton');
 
-    // Инициализация TON Connect
-    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-        manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
-        buttonRootId: 'ton-connect'
-    });
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
+            buttonRootId: 'ton-connect'
+        });
 
-    tonConnectUI.onStatusChange(wallet => {
-        if (wallet) {
-            const shortAddress = wallet.account.address.slice(0, 4) + '...' + wallet.account.address.slice(-4);
-            status.textContent = `✅ Кошелёк подключён: ${shortAddress}`;
-            status.style.background = '#4CAF50';
-            status.style.color = 'white';
-            sendButton.style.display = 'block';
-        } else {
-            status.textContent = 'Подключите кошелёк для оплаты';
-            status.style.background = 'var(--tg-theme-secondary-bg-color, #f0f0f0)';
-            status.style.color = 'var(--tg-theme-text-color, #000)';
-            sendButton.style.display = 'none';
-        }
-    });
+        tonConnectUI.onStatusChange(wallet => {
+            if (wallet) {
+                const shortAddr = wallet.account.address.slice(0, 4) + "..." + wallet.account.address.slice(-4);
+                status.textContent = `✅ Кошелёк подключён: ${shortAddr}`;
+                status.style.background = "#4CAF50";
+                status.style.color = "white";
+                sendButton.style.display = "block";
+            } else {
+                status.textContent = "Подключите кошелёк для оплаты";
+                status.style.background = "var(--tg-theme-secondary-bg-color, #f0f0f0)";
+                status.style.color = "var(--tg-theme-text-color, #000)";
+                sendButton.style.display = "none";
+            }
+        });
 
-    sendButton.addEventListener('click', async () => {
-        try {
-            sendButton.disabled = true;
-            status.textContent = '⏳ Подтвердите транзакцию в кошельке...';
-            status.style.background = '#FF9800';
-            status.style.color = 'white';
+        sendButton.addEventListener("click", async () => {
+            try {
+                sendButton.disabled = true;
+                status.textContent = "⏳ Подтвердите транзакцию в кошельке...";
+                status.style.background = "#FF9800";
+                status.style.color = "white";
 
-            const transaction = {
-                validUntil: Math.floor(Date.now() / 1000) + 600,
-                messages: [{ address: RECIPIENT, amount: AMOUNT_NANO }]
-            };
+                const transaction = {
+                    validUntil: Math.floor(Date.now() / 1000) + 600,
+                    messages: [{ address: RECIPIENT, amount: AMOUNT_NANO }]
+                };
 
-            const result = await tonConnectUI.sendTransaction(transaction);
+                const result = await tonConnectUI.sendTransaction(transaction);
 
-            // Сохраняем параметры
-            const paymentData = {
-                recipient: RECIPIENT,
-                amount: AMOUNT_TON,
-                transactionId: result.transaction.id,
-                userTelegramId: tg.initDataUnsafe.user.id
-            };
+                // --- Безопасная проверка ---
+                if (!result || !result.boc) throw new Error("Не удалось получить данные транзакции");
 
-            // Отправляем данные боту
-            tg.sendData(JSON.stringify(paymentData));
+                const txHash = result.boc.slice(0, 20) + "...";
+                const walletAddress = tonConnectUI.account?.address || "неизвестно";
 
-            status.textContent = '✅ Платёж успешно отправлен!';
-            status.style.background = '#4CAF50';
+                // Сообщаем пользователю
+                status.textContent = "✅ Платёж успешно отправлен!";
+                status.style.background = "#4CAF50";
 
-            setTimeout(() => { tg.close(); }, 2000);
+                // Отправляем данные в Telegram-бот
+                if (userId) {
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            chat_id: userId,
+                            text: `💰 Оплата успешно выполнена!\n\nHash: ${txHash}\nСумма: ${AMOUNT_TON} TON\nОт: ${walletAddress}`
+                        })
+                    });
+                }
 
-        } catch (error) {
-            console.error('Ошибка:', error);
-            status.textContent = '❌ Ошибка: ' + (error.message || 'Транзакция отменена');
-            status.style.background = '#f44336';
-            status.style.color = 'white';
-            sendButton.disabled = false;
-        }
-    });
-</script>
+                setTimeout(() => tg.close(), 2500);
+
+            } catch (error) {
+                console.error("Ошибка:", error);
+                status.textContent = "❌ Ошибка: " + (error.message || "Транзакция отменена");
+                status.style.background = "#f44336";
+                status.style.color = "white";
+                sendButton.disabled = false;
+            }
+        });
+    </script>
 </body>
 </html>
