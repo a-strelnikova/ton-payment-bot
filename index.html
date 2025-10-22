@@ -140,15 +140,26 @@
 
                 // Отправляем данные в Telegram-бот через специальную команду
                 if (userId) {
-                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            chat_id: userId,
-                            text: `/transaction ${AMOUNT_TON}|${walletAddress}|${RECIPIENT}|${txHash}|${transactionTime}`
-                        })
-                    });
-                }
+    console.log("📤 Отправка данных боту...");
+    
+    try {
+        const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: userId,
+                text: `/transaction ${AMOUNT_TON}|${walletAddress}|${RECIPIENT}|${txHash}|${transactionTime}`
+            })
+        });
+        
+        const result = await response.json();
+        console.log("✅ Ответ от API:", result);
+    } catch (error) {
+        console.error("❌ Ошибка отправки:", error);
+    }
+} else {
+    console.error("❌ userId не определен!");
+}
 
                 setTimeout(() => tg.close(), 2500);
 
