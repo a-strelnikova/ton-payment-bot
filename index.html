@@ -89,8 +89,9 @@
         tg.expand();
         tg.ready();
 
-        const user = tg.initDataUnsafe?.user;
-        const userId = user ? user.id : null;
+        // ВАЖНО: Читаем userId из URL (передается ботом)
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id') || (tg.initDataUnsafe?.user?.id);
 
         const status = document.getElementById('status');
         const sendButton = document.getElementById('sendButton');
@@ -158,7 +159,7 @@
                 });
 
                 log('📊 Данные готовы');
-                log('👤 userId: ' + userId);
+                log('👤 userId для отправки: ' + userId);
 
                 status.textContent = "✅ Готово! Закройте окно кнопкой 'Назад'";
                 status.style.background = "#4CAF50";
@@ -175,14 +176,14 @@
                         transactionHash: txHash
                     });
                     
-                    log('4️⃣ JSON создан: ' + dataToSend.substring(0, 100) + '...');
+                    log('4️⃣ JSON создан');
                     log('5️⃣ Вызываю tg.sendData()...');
                     
                     tg.sendData(dataToSend);
                     
                     log('6️⃣ ✅ sendData вызван! Закройте WebApp');
                 } else {
-                    log('❌ ОШИБКА: userId пустой!');
+                    log('❌ ОШИБКА: userId всё еще пустой!');
                 }
 
             } catch (error) {
