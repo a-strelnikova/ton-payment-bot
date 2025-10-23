@@ -135,24 +135,28 @@
                 status.textContent = "✅ Платёж успешно отправлен!";
                 status.style.background = "#4CAF50";
 
-                // Отправляем данные боту
-                if (userId) {
-                    const dataToSend = JSON.stringify({
-                        transactionTime: transactionTime,
-                        amount: AMOUNT_TON,
-                        senderAddress: walletAddress,
-                        recipient: RECIPIENT,
-                        transactionHash: txHash
-                    });
-                    
-                    console.log("Отправка данных боту:", dataToSend);
-                    tg.sendData(dataToSend);
-                    
-                    // Даем время отправить данные, потом закрываем
-                    setTimeout(() => {
-                        tg.close();
-                    }, 1000);
-                }
+               // Отправляем данные боту
+if (userId) {
+    const dataToSend = JSON.stringify({
+        transactionTime: transactionTime,
+        amount: AMOUNT_TON,
+        senderAddress: walletAddress,
+        recipient: RECIPIENT,
+        transactionHash: txHash
+    });
+    
+    alert("Сейчас отправлю данные: " + dataToSend.substring(0, 50));
+    console.log("Отправка данных боту:", dataToSend);
+    tg.sendData(dataToSend);
+    alert("sendData вызван!");
+    
+    setTimeout(() => {
+        alert("Пытаюсь закрыть WebApp...");
+        tg.close();
+    }, 1000);
+} else {
+    alert("ОШИБКА: userId не определен!");
+}
 
             } catch (error) {
                 console.error("Ошибка:", error);
