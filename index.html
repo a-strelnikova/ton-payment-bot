@@ -45,6 +45,16 @@
             font-family: monospace; font-size: 12px; word-break: break-all;
             background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 5px;
         }
+        #debug {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
     </style>
 </head>
 <body>
@@ -63,6 +73,7 @@
         <div id="status">Подключите кошелёк для оплаты</div>
         <div id="ton-connect"></div>
         <button id="sendButton">Отправить платёж</button>
+        <div id="debug"></div>
     </div>
 
     <script>
@@ -83,6 +94,15 @@
 
         const status = document.getElementById('status');
         const sendButton = document.getElementById('sendButton');
+        const debugDiv = document.getElementById('debug');
+
+        function log(msg) {
+            console.log(msg);
+            debugDiv.textContent += msg + '\n';
+        }
+
+        log('🚀 WebApp запущен');
+        log('👤 userId: ' + userId);
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
@@ -96,6 +116,7 @@
                 status.style.background = "#4CAF50";
                 status.style.color = "white";
                 sendButton.style.display = "block";
+                log('💎 Кошелёк подключён: ' + shortAddr);
             } else {
                 status.textContent = "Подключите кошелёк для оплаты";
                 status.style.background = "var(--tg-theme-secondary-bg-color, #f0f0f0)";
@@ -111,6 +132,8 @@
                 status.style.background = "#FF9800";
                 status.style.color = "white";
 
+                log('📝 Начало транзакции...');
+
                 const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
                     messages: [{ address: RECIPIENT, amount: AMOUNT_NANO }]
@@ -119,6 +142,8 @@
                 const result = await tonConnectUI.sendTransaction(transaction);
 
                 if (!result || !result.boc) throw new Error("Не удалось получить данные транзакции");
+
+                log('✅ Транзакция успешна');
 
                 const txHash = result.boc.slice(0, 20) + "...";
                 const walletAddress = tonConnectUI.account?.address || "неизвестно";
@@ -132,11 +157,16 @@
                     second: '2-digit'
                 });
 
+                log('📊 Данные готовы');
+                log('👤 userId: ' + userId);
+
                 status.textContent = "✅ Готово! Закройте окно кнопкой 'Назад'";
                 status.style.background = "#4CAF50";
 
                 // Отправляем данные боту
                 if (userId) {
+                    log('3️⃣ userId есть, создаю JSON...');
+                    
                     const dataToSend = JSON.stringify({
                         transactionTime: transactionTime,
                         amount: AMOUNT_TON,
@@ -145,13 +175,19 @@
                         transactionHash: txHash
                     });
                     
-                    console.log("📤 Отправка данных боту:", dataToSend);
+                    log('4️⃣ JSON создан: ' + dataToSend.substring(0, 100) + '...');
+                    log('5️⃣ Вызываю tg.sendData()...');
+                    
                     tg.sendData(dataToSend);
-                    console.log("✅ sendData вызван, закройте WebApp вручную");
+                    
+                    log('6️⃣ ✅ sendData вызван! Закройте WebApp');
+                } else {
+                    log('❌ ОШИБКА: userId пустой!');
                 }
 
             } catch (error) {
                 console.error("Ошибка:", error);
+                log('❌ ОШИБКА: ' + error.message);
                 status.textContent = "❌ Ошибка: " + (error.message || "Транзакция отменена");
                 status.style.background = "#f44336";
                 status.style.color = "white";
