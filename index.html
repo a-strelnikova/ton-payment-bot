@@ -26,6 +26,33 @@
         .info-row { display: flex; justify-content: space-between; margin: 8px 0; }
         .label { color: var(--tg-theme-hint-color, #999); }
         .value { font-weight: 600; }
+        .tariff-selector {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .tariff-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .tariff-btn.active {
+            border-color: #0088cc;
+            background: #e3f2fd;
+        }
+        .tariff-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .tariff-multiplier {
+            color: #666;
+            font-size: 14px;
+        }
         #status {
             padding: 15px; border-radius: 12px; margin: 15px 0; text-align: center;
             background: var(--tg-theme-secondary-bg-color, #f0f0f0);
@@ -60,9 +87,24 @@
 <body>
     <div class="container">
         <h2>💎 Оплата TON</h2>
+        
+        <div class="info-box">
+            <div class="label" style="margin-bottom: 10px;">Выберите тариф:</div>
+            <div class="tariff-selector">
+                <div class="tariff-btn" id="tariff-inactive" onclick="selectTariff('inactive')">
+                    <div class="tariff-name">Неактивные</div>
+                    <div class="tariff-multiplier">× 1.03</div>
+                </div>
+                <div class="tariff-btn active" id="tariff-active" onclick="selectTariff('active')">
+                    <div class="tariff-name">Активные</div>
+                    <div class="tariff-multiplier">× 1.05</div>
+                </div>
+            </div>
+        </div>
+
         <div class="info-box">
             <div class="info-row">
-                <span class="label">Получатель:</span>
+                <span class="label">Получатель (контракт):</span>
             </div>
             <div class="address" id="recipient"></div>
             <div class="info-row" style="margin-top: 15px;">
@@ -70,6 +112,7 @@
                 <span class="value" id="amount"></span>
             </div>
         </div>
+
         <div id="status">Подключите кошелёк для оплаты</div>
         <div id="ton-connect"></div>
         <button id="sendButton">Отправить платёж</button>
@@ -77,19 +120,47 @@
     </div>
 
     <script>
-        const RECIPIENT = "UQC2ZPhEjFTLew6ptFzUbjvFIjt9uMG1q2NSf1ap-IWMd8sM";
+        // КОНСТАНТЫ
+        const CONTRACT_ADDRESS = "EQAztWBXakvAp0_MR2FekTju41VYa4d_Dgszkwj-HNo70YqB";
         const AMOUNT_TON = 0.1;
         const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
         const GITHUB_USERNAME = "a-strelnikova";
 
-        document.getElementById('recipient').textContent = RECIPIENT;
+        // Множители для тарифов
+        const MULTIPLIERS = {
+            inactive: 1030,  // 1.03x
+            active: 1050     // 1.05x
+        };
+
+        let selectedTariff = 'active';  // По умолчанию "Активные"
+
+        // Функция выбора тарифа
+        function selectTariff(tariff) {
+            selectedTariff = tariff;
+            document.getElementById('tariff-inactive').classList.remove('active');
+            document.getElementById('tariff-active').classList.remove('active');
+            document.getElementById('tariff-' + tariff).classList.add('active');
+            log('📊 Выбран тариф: ' + tariff + ' (множитель: ' + MULTIPLIERS[tariff] + ')');
+        }
+
+        // Функция создания payload с множителем
+        function createPayload(multiplier) {
+            // Создаём Cell с uint16
+            const cell = new Uint8Array(2);
+            cell[0] = (multiplier >> 8) & 0xff;  // Старший байт
+            cell[1] = multiplier & 0xff;          // Младший байт
+            
+            // Конвертируем в base64 (упрощённо)
+            return btoa(String.fromCharCode.apply(null, cell));
+        }
+
+        document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
         document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
 
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
 
-        // ВАЖНО: Читаем userId из URL (передается ботом)
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id') || (tg.initDataUnsafe?.user?.id);
 
@@ -104,6 +175,7 @@
 
         log('🚀 WebApp запущен');
         log('👤 userId: ' + userId);
+        log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
@@ -134,10 +206,20 @@
                 status.style.color = "white";
 
                 log('📝 Начало транзакции...');
+                log('📊 Выбранный множитель: ' + MULTIPLIERS[selectedTariff]);
+
+                const multiplier = MULTIPLIERS[selectedTariff];
+                const payload = createPayload(multiplier);
+
+                log('📦 Payload создан: ' + payload);
 
                 const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
-                    messages: [{ address: RECIPIENT, amount: AMOUNT_NANO }]
+                    messages: [{
+                        address: CONTRACT_ADDRESS,
+                        amount: AMOUNT_NANO,
+                        payload: payload
+                    }]
                 };
 
                 const result = await tonConnectUI.sendTransaction(transaction);
@@ -164,26 +246,21 @@
                 status.textContent = "✅ Готово! Закройте окно кнопкой 'Назад'";
                 status.style.background = "#4CAF50";
 
-                // Отправляем данные боту
                 if (userId) {
-                    log('3️⃣ userId есть, создаю JSON...');
-                    
                     const dataToSend = JSON.stringify({
                         transactionTime: transactionTime,
                         amount: AMOUNT_TON,
                         senderAddress: walletAddress,
-                        recipient: RECIPIENT,
-                        transactionHash: txHash
+                        recipient: CONTRACT_ADDRESS,
+                        transactionHash: txHash,
+                        multiplier: multiplier
                     });
                     
-                    log('4️⃣ JSON создан');
-                    log('5️⃣ Вызываю tg.sendData()...');
-                    
+                    log('✅ Отправка данных боту...');
                     tg.sendData(dataToSend);
-                    
-                    log('6️⃣ ✅ sendData вызван! Закройте WebApp');
+                    log('✅ sendData вызван! Закройте WebApp');
                 } else {
-                    log('❌ ОШИБКА: userId всё еще пустой!');
+                    log('❌ ОШИБКА: userId отсутствует!');
                 }
 
             } catch (error) {
