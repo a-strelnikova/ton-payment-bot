@@ -146,24 +146,42 @@
         log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
 
         // Правильная функция создания payload
-        function createPayload(multiplier) {
-            try {
-                const { beginCell } = window.TonCore;
-                
-                const cell = beginCell()
-                    .storeUint(multiplier, 16)
-                    .endCell();
-                
-                const boc = cell.toBoc();
-                const base64 = boc.toString('base64');
-                
-                log('📦 Payload создан успешно');
-                return base64;
-            } catch (error) {
-                log('❌ Ошибка создания payload: ' + error.message);
-                throw error;
-            }
-        }
+function createPayload(multiplier) {
+    try {
+        // Создаём BoC вручную для uint16
+        // Структура: 2 байта данных
+        const data = new Uint8Array(2);
+        data[0] = (multiplier >> 8) & 0xFF;  // Старший байт
+        data[1] = multiplier & 0xFF;          // Младший байт
+        
+        // BoC header для простой Cell с 2 байтами данных
+        // Упрощённый BoC формат
+        const boc = new Uint8Array([
+            0xB5, 0xEE, 0x9C, 0x72,  // Magic
+            0x01,                     // Has index: 0, has crc32c: 0, has cache bits: 1, flags: 0
+            0x01,                     // Ref count
+            0x00,                     // Offset
+            0x06,                     // Size (6 bytes total)
+            0x01,                     // Root count
+            0x00,                     // Absent count
+            0x00,                     // Total cells
+            0x01,                     // Roots
+            0x00,                     // Complete: true
+            0x02,                     // Data size: 2 bytes
+            data[0], data[1],         // Actual data
+            0x00                      // Refs descriptor (no refs)
+        ]);
+        
+        // Конвертируем в base64
+        const base64 = btoa(String.fromCharCode.apply(null, boc));
+        
+        log('📦 Payload создан успешно');
+        return base64;
+    } catch (error) {
+        log('❌ Ошибка создания payload: ' + error.message);
+        throw error;
+    }
+}
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
