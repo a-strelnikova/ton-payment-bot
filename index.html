@@ -151,32 +151,26 @@ log('TonCore type: ' + typeof window.TonCore);
 
         // Правильная функция создания payload
         function createPayload(multiplier) {
-            try {
-                // Создаём BoC вручную для uint16
-                const data = new Uint8Array(2);
-                data[0] = (multiplier >> 8) & 0xFF;
-                data[1] = multiplier & 0xFF;
-                
-                // Упрощённый BoC формат для 2 байтов данных
-                const boc = new Uint8Array([
-                    0xB5, 0xEE, 0x9C, 0x72,  // Magic
-                    0x01, 0x01, 0x00, 0x06,  // Header
-                    0x01, 0x00, 0x00, 0x01,  // Cells info
-                    0x00, 0x01, 0x00,        // Complete
-                    0x02,                     // Data size: 2 bytes
-                    data[0], data[1],         // Actual data
-                    0x00                      // Refs descriptor
-                ]);
-                
-                const base64 = btoa(String.fromCharCode.apply(null, boc));
-                
-                log('📦 Payload создан: ' + base64);
-                return base64;
-            } catch (error) {
-                log('❌ Ошибка создания payload: ' + error.message);
-                throw error;
-            }
+    try {
+        // Проверяем разные варианты экспорта
+        const TonCore = window.TonCore || window.TONCore || window.ton;
+        
+        log('TonCore найден: ' + (TonCore ? 'да' : 'нет'));
+        
+        if (!TonCore || !TonCore.beginCell) {
+            throw new Error('TonCore не загружен правильно');
         }
+        
+        const cell = TonCore.beginCell()
+            .storeUint(multiplier, 16)
+            .endCell();
+        
+        return cell.toBoc().toString('base64');
+    } catch (error) {
+        log('Ошибка: ' + error.message);
+        throw error;
+    }
+}
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
