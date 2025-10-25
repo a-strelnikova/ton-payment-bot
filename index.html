@@ -6,6 +6,7 @@
     <title>TON Payment</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ton-core@0.56.0/dist/index.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -53,10 +54,6 @@
             border-radius: 12px; font-size: 16px; font-weight: 600;
             cursor: pointer; transition: all 0.3s;
         }
-        #ton-connect {
-            background: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-        }
         #sendButton { background: #4CAF50; color: white; display: none; }
         #sendButton:active { transform: scale(0.98); }
         .address {
@@ -81,7 +78,7 @@
         
         <div class="info-box">
             <div class="label" style="margin-bottom: 10px;">Ваш тариф:</div>
-            <div class="tariff-info" id="tariff-display">
+            <div class="tariff-info">
                 <div class="tariff-name" id="tariff-name">Загрузка...</div>
                 <div class="tariff-multiplier" id="tariff-multiplier"></div>
             </div>
@@ -89,7 +86,7 @@
 
         <div class="info-box">
             <div class="info-row">
-                <span class="label">Получатель (контракт):</span>
+                <span class="label">Получатель:</span>
             </div>
             <div class="address" id="recipient"></div>
             <div class="info-row" style="margin-top: 15px;">
@@ -98,36 +95,24 @@
             </div>
         </div>
 
-        <div id="status">Подключите кошелёк для оплаты</div>
+        <div id="status">Подключите кошелёк</div>
         <div id="ton-connect"></div>
-        <button id="sendButton">Отправить платёж</button>
+        <button id="sendButton">Отправить</button>
         <div id="debug"></div>
     </div>
 
     <script>
-
-        console.log('TonCore проверка:', typeof window.TonCore);
-console.log('Что внутри:', window.TonCore);
-log('TonCore type: ' + typeof window.TonCore);
-        
-        // КОНСТАНТЫ
         const CONTRACT_ADDRESS = "EQAztWBXakvAp0_MR2FekTju41VYa4d_Dgszkwj-HNo70YqB";
         const AMOUNT_TON = 0.1;
         const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
         const GITHUB_USERNAME = "a-strelnikova";
 
-        // Читаем параметры из URL
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
         const multiplier = parseInt(urlParams.get('multiplier')) || 1050;
 
-        // Определяем название тарифа
-        const tariffName = multiplier === 1050 ? "Активные пользователи" : "Неактивные пользователи";
-        const tariffMultiplierText = `Коэффициент: × ${(multiplier / 1000).toFixed(2)}`;
-
-        // Отображаем тариф
-        document.getElementById('tariff-name').textContent = tariffName;
-        document.getElementById('tariff-multiplier').textContent = tariffMultiplierText;
+        document.getElementById('tariff-name').textContent = multiplier === 1050 ? "Активные" : "Неактивные";
+        document.getElementById('tariff-multiplier').textContent = `× ${(multiplier / 1000).toFixed(2)}`;
         document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
         document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
 
@@ -135,42 +120,30 @@ log('TonCore type: ' + typeof window.TonCore);
         tg.expand();
         tg.ready();
 
-        const status = document.getElementById('status');
-        const sendButton = document.getElementById('sendButton');
         const debugDiv = document.getElementById('debug');
-
         function log(msg) {
             console.log(msg);
             debugDiv.textContent += msg + '\n';
         }
 
-        log('🚀 WebApp запущен');
-        log('👤 userId: ' + userId);
-        log('📊 Множитель: ' + multiplier);
-        log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
+        log('WebApp запущен');
+        log('userId: ' + userId);
+        log('Множитель: ' + multiplier);
 
-        // Правильная функция создания payload
-        function createPayload(multiplier) {
-    try {
-        // Проверяем разные варианты экспорта
-        const TonCore = window.TonCore || window.TONCore || window.ton;
-        
-        log('TonCore найден: ' + (TonCore ? 'да' : 'нет'));
-        
-        if (!TonCore || !TonCore.beginCell) {
-            throw new Error('TonCore не загружен правильно');
+        function createPayload(mult) {
+            try {
+                const { beginCell } = TonCore;
+                const cell = beginCell()
+                    .storeUint(mult, 16)
+                    .endCell();
+                const boc = cell.toBoc({idx: false}).toString('base64');
+                log('Payload: ' + boc.substring(0, 20) + '...');
+                return boc;
+            } catch (e) {
+                log('Ошибка payload: ' + e.message);
+                throw e;
+            }
         }
-        
-        const cell = TonCore.beginCell()
-            .storeUint(multiplier, 16)
-            .endCell();
-        
-        return cell.toBoc().toString('base64');
-    } catch (error) {
-        log('Ошибка: ' + error.message);
-        throw error;
-    }
-}
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
@@ -178,88 +151,55 @@ log('TonCore type: ' + typeof window.TonCore);
         });
 
         tonConnectUI.onStatusChange(wallet => {
+            const btn = document.getElementById('sendButton');
+            const status = document.getElementById('status');
             if (wallet) {
-                const shortAddr = wallet.account.address.slice(0, 4) + "..." + wallet.account.address.slice(-4);
-                status.textContent = `✅ Кошелёк подключён: ${shortAddr}`;
+                status.textContent = "✅ Подключён";
                 status.style.background = "#4CAF50";
                 status.style.color = "white";
-                sendButton.style.display = "block";
-                log('💎 Кошелёк подключён: ' + shortAddr);
+                btn.style.display = "block";
+                log('Кошелёк подключён');
             } else {
-                status.textContent = "Подключите кошелёк для оплаты";
-                status.style.background = "var(--tg-theme-secondary-bg-color, #f0f0f0)";
-                status.style.color = "var(--tg-theme-text-color, #000)";
-                sendButton.style.display = "none";
+                status.textContent = "Подключите кошелёк";
+                status.style.background = "#f0f0f0";
+                btn.style.display = "none";
             }
         });
 
-        sendButton.addEventListener("click", async () => {
+        document.getElementById('sendButton').addEventListener("click", async () => {
             try {
-                sendButton.disabled = true;
-                status.textContent = "⏳ Подтвердите транзакцию в кошельке...";
-                status.style.background = "#FF9800";
-                status.style.color = "white";
-
-                log('📝 Начало транзакции...');
-                log('📊 Используемый множитель: ' + multiplier);
+                document.getElementById('status').textContent = "⏳ Подтвердите...";
+                log('Отправка...');
 
                 const payload = createPayload(multiplier);
 
-                const transaction = {
+                const result = await tonConnectUI.sendTransaction({
                     validUntil: Math.floor(Date.now() / 1000) + 600,
                     messages: [{
                         address: CONTRACT_ADDRESS,
                         amount: AMOUNT_NANO,
                         payload: payload
                     }]
-                };
-
-                log('📤 Отправка транзакции...');
-                const result = await tonConnectUI.sendTransaction(transaction);
-
-                if (!result || !result.boc) throw new Error("Не удалось получить данные транзакции");
-
-                log('✅ Транзакция успешна');
-
-                const txHash = result.boc.slice(0, 20) + "...";
-                const walletAddress = tonConnectUI.account?.address || "неизвестно";
-
-                const transactionTime = new Date().toLocaleString('ru-RU', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
                 });
 
-                status.textContent = "✅ Готово! Закройте окно кнопкой 'Назад'";
-                status.style.background = "#4CAF50";
+                log('✅ Успех!');
+                document.getElementById('status').textContent = "✅ Готово!";
+                document.getElementById('status').style.background = "#4CAF50";
 
                 if (userId) {
-                    const dataToSend = JSON.stringify({
-                        transactionTime: transactionTime,
+                    tg.sendData(JSON.stringify({
+                        transactionTime: new Date().toLocaleString('ru-RU'),
                         amount: AMOUNT_TON,
-                        senderAddress: walletAddress,
+                        senderAddress: tonConnectUI.account?.address,
                         recipient: CONTRACT_ADDRESS,
-                        transactionHash: txHash,
+                        transactionHash: result.boc.slice(0, 20),
                         multiplier: multiplier
-                    });
-                    
-                    log('✅ Отправка данных боту...');
-                    tg.sendData(dataToSend);
-                    log('✅ sendData вызван! Закройте WebApp');
-                } else {
-                    log('❌ ОШИБКА: userId отсутствует!');
+                    }));
+                    log('Данные отправлены боту');
                 }
-
-            } catch (error) {
-                console.error("Ошибка:", error);
-                log('❌ ОШИБКА: ' + error.message);
-                status.textContent = "❌ Ошибка: " + (error.message || "Транзакция отменена");
-                status.style.background = "#f44336";
-                status.style.color = "white";
-                sendButton.disabled = false;
+            } catch (e) {
+                log('Ошибка: ' + e.message);
+                document.getElementById('status').textContent = "❌ Ошибка";
             }
         });
     </script>
