@@ -104,7 +104,10 @@
         <div id="debug"></div>
     </div>
 
-    <script>
+    <!-- Подключаем @ton/core через CDN -->
+    <script type="module">
+        import { beginCell, Cell } from 'https://cdn.jsdelivr.net/npm/@ton/core@0.56.0/+esm';
+
         // КОНСТАНТЫ
         const CONTRACT_ADDRESS = "EQAztWBXakvAp0_MR2FekTju41VYa4d_Dgszkwj-HNo70YqB";
         const AMOUNT_TON = 0.1;
@@ -144,28 +147,23 @@
         log('📊 Множитель: ' + multiplier);
         log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
 
-        // Правильная функция создания payload
+        // ✅ ПРАВИЛЬНАЯ функция создания payload через @ton/core
         function createPayload(multiplier) {
             try {
-                // Создаём BoC вручную для uint16
-                const data = new Uint8Array(2);
-                data[0] = (multiplier >> 8) & 0xFF;
-                data[1] = multiplier & 0xFF;
+                log('📦 Создание payload для multiplier: ' + multiplier);
                 
-                // Упрощённый BoC формат для 2 байтов данных
-                const boc = new Uint8Array([
-                    0xB5, 0xEE, 0x9C, 0x72,  // Magic
-                    0x01, 0x01, 0x00, 0x06,  // Header
-                    0x01, 0x00, 0x00, 0x01,  // Cells info
-                    0x00, 0x01, 0x00,        // Complete
-                    0x02,                     // Data size: 2 bytes
-                    data[0], data[1],         // Actual data
-                    0x00                      // Refs descriptor
-                ]);
+                // Создаём Cell с uint16
+                const cell = beginCell()
+                    .storeUint(multiplier, 16)
+                    .endCell();
                 
-                const base64 = btoa(String.fromCharCode.apply(null, boc));
+                // Конвертируем в base64 BoC
+                const boc = cell.toBoc();
+                const base64 = boc.toString('base64');
                 
-                log('📦 Payload создан: ' + base64);
+                log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
+                log('📏 Длина BoC: ' + boc.length + ' байт');
+                
                 return base64;
             } catch (error) {
                 log('❌ Ошибка создания payload: ' + error.message);
@@ -215,12 +213,15 @@
                     }]
                 };
 
-                log('📤 Отправка транзакции...');
+                log('📤 Отправка транзакции с payload...');
                 const result = await tonConnectUI.sendTransaction(transaction);
 
-                if (!result || !result.boc) throw new Error("Не удалось получить данные транзакции");
+                if (!result || !result.boc) {
+                    throw new Error("Не удалось получить данные транзакции");
+                }
 
-                log('✅ Транзакция успешна');
+                log('✅ Транзакция успешна!');
+                log('📦 BOC получен: ' + result.boc.substring(0, 50) + '...');
 
                 const txHash = result.boc.slice(0, 20) + "...";
                 const walletAddress = tonConnectUI.account?.address || "неизвестно";
