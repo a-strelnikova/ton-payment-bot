@@ -104,31 +104,20 @@
         <div id="debug"></div>
     </div>
 
-    <!-- Подключаем @ton/core через CDN -->
     <script type="module">
         import { beginCell, Cell } from 'https://cdn.jsdelivr.net/npm/@ton/core@0.56.0/+esm';
 
+        // ============================================
         // КОНСТАНТЫ
+        // ============================================
         const CONTRACT_ADDRESS = "EQDqZvytwRqzNJsmCNSXYdqwCOzFFf6XKCZ3w-c4rep1EQsR";
         const AMOUNT_TON = 0.1;
         const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
         const GITHUB_USERNAME = "a-strelnikova";
 
-        // Читаем параметры из URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id');
-        const multiplier = parseInt(urlParams.get('multiplier')) || 1050;
-
-        // Определяем название тарифа
-        const tariffName = multiplier === 1050 ? "Активные пользователи" : "Неактивные пользователи";
-        const tariffMultiplierText = `Коэффициент: × ${(multiplier / 1000).toFixed(2)}`;
-
-        // Отображаем тариф
-        document.getElementById('tariff-name').textContent = tariffName;
-        document.getElementById('tariff-multiplier').textContent = tariffMultiplierText;
-        document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
-        document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
-
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ TELEGRAM WEBAPP
+        // ============================================
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
@@ -137,45 +126,100 @@
         const sendButton = document.getElementById('sendButton');
         const debugDiv = document.getElementById('debug');
 
+        /**
+         * Функция логирования в debug блок
+         * @param {string} msg - Сообщение для логирования
+         */
         function log(msg) {
             console.log(msg);
             debugDiv.textContent += msg + '\n';
         }
 
         log('🚀 WebApp запущен');
+
+        // ============================================
+        // ЧТЕНИЕ И ВАЛИДАЦИЯ ПАРАМЕТРОВ ИЗ URL
+        // ============================================
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        const multiplier = parseInt(urlParams.get('multiplier'));
+
         log('👤 userId: ' + userId);
-        log('📊 Множитель: ' + multiplier);
+        log('📊 Множитель из URL: ' + multiplier);
+
+        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Валидация множителя
+        if (!multiplier || isNaN(multiplier) || multiplier < 500 || multiplier > 2000) {
+            log('❌ КРИТИЧЕСКАЯ ОШИБКА: Неверный или отсутствующий множитель!');
+            log('Полученное значение: ' + multiplier);
+            log('WebApp будет закрыт через 3 секунды...');
+            
+            status.textContent = "❌ Ошибка загрузки тарифа. Перезапустите /start";
+            status.style.background = "#f44336";
+            status.style.color = "white";
+            
+            // Закрываем WebApp через 3 секунды
+            setTimeout(() => {
+                tg.close();
+            }, 3000);
+            
+            throw new Error("Invalid multiplier parameter");
+        }
+
+        log('✅ Множитель валидирован: ' + multiplier);
+
+        // ============================================
+        // ОПРЕДЕЛЕНИЕ И ОТОБРАЖЕНИЕ ТАРИФА
+        // ============================================
+        const tariffName = multiplier === 1050 ? "Активные пользователи" : "Неактивные пользователи";
+        const tariffMultiplierText = `Коэффициент: × ${(multiplier / 1000).toFixed(2)}`;
+
+        document.getElementById('tariff-name').textContent = tariffName;
+        document.getElementById('tariff-multiplier').textContent = tariffMultiplierText;
+        document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
+        document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
+
         log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
+        log('💰 Сумма платежа: ' + AMOUNT_TON + ' TON');
 
-        // ✅ ПРАВИЛЬНАЯ функция создания payload через @ton/core
-       function createPayload(multiplier) {
-    try {
-        log('📦 Создание payload для multiplier: ' + multiplier);
-        
-        // ИСПРАВЛЕНО: Добавлен OP код для Tact контракта
-        const cell = beginCell()
-            .storeUint(2374307090, 32)  // OP код CreateDeposit
-            .storeUint(multiplier, 16)   // Множитель
-            .endCell();
-        
-        const boc = cell.toBoc();
-        const base64 = boc.toString('base64');
-        
-        log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
-        log('📏 Длина BoC: ' + boc.length + ' байт');
-        
-        return base64;
-    } catch (error) {
-        log('❌ Ошибка создания payload: ' + error.message);
-        throw error;
-    }
-}
+        /**
+         * Создание payload для транзакции с множителем
+         * @param {number} multiplier - Множитель (1030 или 1050)
+         * @returns {string} Base64 encoded BoC payload
+         */
+        function createPayload(multiplier) {
+            try {
+                log('📦 Создание payload для multiplier: ' + multiplier);
+                
+                // Создаём Cell с OP кодом CreateDeposit и множителем
+                const cell = beginCell()
+                    .storeUint(2374307090, 32)  // OP код CreateDeposit
+                    .storeUint(multiplier, 16)   // Множитель
+                    .endCell();
+                
+                const boc = cell.toBoc();
+                const base64 = boc.toString('base64');
+                
+                log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
+                log('📏 Длина BoC: ' + boc.length + ' байт');
+                
+                return base64;
+            } catch (error) {
+                log('❌ Ошибка создания payload: ' + error.message);
+                throw error;
+            }
+        }
 
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ TON CONNECT
+        // ============================================
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
             buttonRootId: 'ton-connect'
         });
 
+        /**
+         * Обработчик изменения статуса подключения кошелька
+         */
         tonConnectUI.onStatusChange(wallet => {
             if (wallet) {
                 const shortAddr = wallet.account.address.slice(0, 4) + "..." + wallet.account.address.slice(-4);
@@ -192,6 +236,9 @@
             }
         });
 
+        // ============================================
+        // ОБРАБОТЧИК КНОПКИ ОТПРАВКИ ПЛАТЕЖА
+        // ============================================
         sendButton.addEventListener("click", async () => {
             try {
                 sendButton.disabled = true;
@@ -202,8 +249,10 @@
                 log('📝 Начало транзакции...');
                 log('📊 Используемый множитель: ' + multiplier);
 
+                // Создаём payload с множителем
                 const payload = createPayload(multiplier);
 
+                // Формируем транзакцию
                 const transaction = {
                     validUntil: Math.floor(Date.now() / 1000) + 600,
                     messages: [{
@@ -223,6 +272,7 @@
                 log('✅ Транзакция успешна!');
                 log('📦 BOC получен: ' + result.boc.substring(0, 50) + '...');
 
+                // Получаем данные для отправки боту
                 const txHash = result.boc.slice(0, 20) + "...";
                 const walletAddress = tonConnectUI.account?.address || "неизвестно";
 
@@ -235,9 +285,10 @@
                     second: '2-digit'
                 });
 
-                status.textContent = "✅ Готово! Закройте окно кнопкой 'Назад'";
+                status.textContent = "✅ Успешно! Закрытие через 1 сек...";
                 status.style.background = "#4CAF50";
 
+                // Отправляем данные боту если есть userId
                 if (userId) {
                     const dataToSend = JSON.stringify({
                         transactionTime: transactionTime,
@@ -245,14 +296,22 @@
                         senderAddress: walletAddress,
                         recipient: CONTRACT_ADDRESS,
                         transactionHash: txHash,
-                        multiplier: multiplier
+                        multiplier: multiplier  // ✅ Отправляем валидированный множитель
                     });
                     
                     log('✅ Отправка данных боту...');
+                    log('📦 Данные: ' + dataToSend);
                     tg.sendData(dataToSend);
-                    log('✅ sendData вызван! Закройте WebApp');
+                    log('✅ Данные отправлены!');
+                    
+                    // ✅ ПРИНУДИТЕЛЬНОЕ ЗАКРЫТИЕ WebApp
+                    log('🔒 Закрытие WebApp через 1 секунду...');
+                    setTimeout(() => {
+                        tg.close();
+                    }, 1000);
                 } else {
                     log('❌ ОШИБКА: userId отсутствует!');
+                    status.textContent = "❌ Ошибка: не удалось определить пользователя";
                 }
 
             } catch (error) {
