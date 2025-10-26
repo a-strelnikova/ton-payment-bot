@@ -148,28 +148,28 @@
         log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
 
         // ✅ ПРАВИЛЬНАЯ функция создания payload через @ton/core
-        function createPayload(multiplier) {
-            try {
-                log('📦 Создание payload для multiplier: ' + multiplier);
-                
-                // Создаём Cell с uint16
-                const cell = beginCell()
-                    .storeUint(multiplier, 16)
-                    .endCell();
-                
-                // Конвертируем в base64 BoC
-                const boc = cell.toBoc();
-                const base64 = boc.toString('base64');
-                
-                log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
-                log('📏 Длина BoC: ' + boc.length + ' байт');
-                
-                return base64;
-            } catch (error) {
-                log('❌ Ошибка создания payload: ' + error.message);
-                throw error;
-            }
-        }
+       function createPayload(multiplier) {
+    try {
+        log('📦 Создание payload для multiplier: ' + multiplier);
+        
+        // ИСПРАВЛЕНО: Добавлен OP код для Tact контракта
+        const cell = beginCell()
+            .storeUint(2374307090, 32)  // OP код CreateDeposit
+            .storeUint(multiplier, 16)   // Множитель
+            .endCell();
+        
+        const boc = cell.toBoc();
+        const base64 = boc.toString('base64');
+        
+        log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
+        log('📏 Длина BoC: ' + boc.length + ' байт');
+        
+        return base64;
+    } catch (error) {
+        log('❌ Ошибка создания payload: ' + error.message);
+        throw error;
+    }
+}
 
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
