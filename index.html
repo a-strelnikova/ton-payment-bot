@@ -96,6 +96,10 @@
                 <span class="label">Сумма:</span>
                 <span class="value" id="amount"></span>
             </div>
+            <div class="info-row">
+                <span class="label">ID транзакции:</span>
+                <span class="value" id="external-id" style="font-family: monospace;"></span>
+            </div>
         </div>
 
         <div id="status">Подключите кошелёк для оплаты</div>
@@ -110,9 +114,7 @@
         // ============================================
         // КОНСТАНТЫ
         // ============================================
-        const CONTRACT_ADDRESS = "EQDqZvytwRqzNJsmCNSXYdqwCOzFFf6XKCZ3w-c4rep1EQsR";
-        const AMOUNT_TON = 0.1;
-        const AMOUNT_NANO = String(AMOUNT_TON * 1e9);
+        const CONTRACT_ADDRESS = "EQDMrlaCpL9piz4So5lfvDn_Gyb10q6JkvrHSNCxtTxUvCiC";
         const GITHUB_USERNAME = "a-strelnikova";
 
         // ============================================
@@ -143,29 +145,45 @@
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
         const multiplier = parseInt(urlParams.get('multiplier'));
+        const amount = parseFloat(urlParams.get('amount'));  // ✅ НОВОЕ: получаем сумму
+        const externalId = urlParams.get('external_id');     // ✅ НОВОЕ: получаем UUID
 
         log('👤 userId: ' + userId);
         log('📊 Множитель из URL: ' + multiplier);
+        log('💰 Сумма из URL: ' + amount);
+        log('🆔 External ID: ' + externalId);
 
-        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Валидация множителя
+        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Валидация параметров
         if (!multiplier || isNaN(multiplier) || multiplier < 500 || multiplier > 2000) {
-            log('❌ КРИТИЧЕСКАЯ ОШИБКА: Неверный или отсутствующий множитель!');
-            log('Полученное значение: ' + multiplier);
-            log('WebApp будет закрыт через 3 секунды...');
-            
-            status.textContent = "❌ Ошибка загрузки тарифа. Перезапустите /start";
+            log('❌ ОШИБКА: Неверный множитель!');
+            status.textContent = "❌ Ошибка загрузки тарифа";
             status.style.background = "#f44336";
             status.style.color = "white";
-            
-            // Закрываем WebApp через 3 секунды
-            setTimeout(() => {
-                tg.close();
-            }, 3000);
-            
-            throw new Error("Invalid multiplier parameter");
+            setTimeout(() => tg.close(), 3000);
+            throw new Error("Invalid multiplier");
         }
 
-        log('✅ Множитель валидирован: ' + multiplier);
+        if (!amount || isNaN(amount) || amount <= 0) {
+            log('❌ ОШИБКА: Неверная сумма!');
+            status.textContent = "❌ Ошибка загрузки суммы";
+            status.style.background = "#f44336";
+            status.style.color = "white";
+            setTimeout(() => tg.close(), 3000);
+            throw new Error("Invalid amount");
+        }
+
+        if (!externalId || !externalId.startsWith('id')) {
+            log('❌ ОШИБКА: Неверный external_id!');
+            status.textContent = "❌ Ошибка ID транзакции";
+            status.style.background = "#f44336";
+            status.style.color = "white";
+            setTimeout(() => tg.close(), 3000);
+            throw new Error("Invalid external_id");
+        }
+
+        log('✅ Все параметры валидированы');
+
+        const AMOUNT_NANO = String(amount * 1e9);
 
         // ============================================
         // ОПРЕДЕЛЕНИЕ И ОТОБРАЖЕНИЕ ТАРИФА
@@ -176,24 +194,33 @@
         document.getElementById('tariff-name').textContent = tariffName;
         document.getElementById('tariff-multiplier').textContent = tariffMultiplierText;
         document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
-        document.getElementById('amount').textContent = `${AMOUNT_TON} TON`;
+        document.getElementById('amount').textContent = `${amount} TON`;
+        document.getElementById('external-id').textContent = externalId;
 
         log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
-        log('💰 Сумма платежа: ' + AMOUNT_TON + ' TON');
+        log('💰 Сумма платежа: ' + amount + ' TON');
 
         /**
-         * Создание payload для транзакции с множителем
+         * Создание payload для транзакции с external_id
          * @param {number} multiplier - Множитель (1030 или 1050)
+         * @param {string} externalId - UUID в формате "ida3b5c7"
          * @returns {string} Base64 encoded BoC payload
          */
-        function createPayload(multiplier) {
+        function createPayload(multiplier, externalId) {
             try {
-                log('📦 Создание payload для multiplier: ' + multiplier);
+                log('📦 Создание payload...');
+                log('   multiplier: ' + multiplier);
+                log('   externalId: ' + externalId);
                 
-                // Создаём Cell с OP кодом CreateDeposit и множителем
+                // Создаём Cell с OP кодом, множителем и external_id
                 const cell = beginCell()
                     .storeUint(2374307090, 32)  // OP код CreateDeposit
                     .storeUint(multiplier, 16)   // Множитель
+                    .storeRef(                   // ✅ НОВОЕ: external_id в ref
+                        beginCell()
+                            .storeStringTail(externalId)
+                        .endCell()
+                    )
                     .endCell();
                 
                 const boc = cell.toBoc();
@@ -247,10 +274,12 @@
                 status.style.color = "white";
 
                 log('📝 Начало транзакции...');
-                log('📊 Используемый множитель: ' + multiplier);
+                log('💰 Сумма: ' + amount + ' TON');
+                log('📊 Множитель: ' + multiplier);
+                log('🆔 External ID: ' + externalId);
 
-                // Создаём payload с множителем
-                const payload = createPayload(multiplier);
+                // ✅ Создаём payload с external_id
+                const payload = createPayload(multiplier, externalId);
 
                 // Формируем транзакцию
                 const transaction = {
@@ -262,7 +291,7 @@
                     }]
                 };
 
-                log('📤 Отправка транзакции с payload...');
+                log('📤 Отправка транзакции...');
                 const result = await tonConnectUI.sendTransaction(transaction);
 
                 if (!result || !result.boc) {
@@ -270,7 +299,7 @@
                 }
 
                 log('✅ Транзакция успешна!');
-                log('📦 BOC получен: ' + result.boc.substring(0, 50) + '...');
+                log('📦 BOC: ' + result.boc.substring(0, 50) + '...');
 
                 // Получаем данные для отправки боту
                 const txHash = result.boc.slice(0, 20) + "...";
@@ -288,15 +317,16 @@
                 status.textContent = "✅ Успешно! Закрытие через 1 сек...";
                 status.style.background = "#4CAF50";
 
-                // Отправляем данные боту если есть userId
+                // ✅ Отправляем данные боту с external_id
                 if (userId) {
                     const dataToSend = JSON.stringify({
                         transactionTime: transactionTime,
-                        amount: AMOUNT_TON,
+                        amount: amount,               // ✅ Динамическая сумма
                         senderAddress: walletAddress,
                         recipient: CONTRACT_ADDRESS,
                         transactionHash: txHash,
-                        multiplier: multiplier  // ✅ Отправляем валидированный множитель
+                        multiplier: multiplier,
+                        external_id: externalId       // ✅ НОВОЕ: UUID
                     });
                     
                     log('✅ Отправка данных боту...');
@@ -304,7 +334,6 @@
                     tg.sendData(dataToSend);
                     log('✅ Данные отправлены!');
                     
-                    // ✅ ПРИНУДИТЕЛЬНОЕ ЗАКРЫТИЕ WebApp
                     log('🔒 Закрытие WebApp через 1 секунду...');
                     setTimeout(() => {
                         tg.close();
