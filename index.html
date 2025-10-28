@@ -49,29 +49,21 @@
             background: var(--tg-theme-secondary-bg-color, #f0f0f0);
         }
         button {
-            width: 100%; padding: 16px; margin: 10px 0; border: none;
-            border-radius: 12px; font-size: 16px; font-weight: 600;
-            cursor: pointer; transition: all 0.3s;
-        }
-        #ton-connect {
-            background: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            width: 100%; padding: 15px; font-size: 16px; font-weight: 600;
+            border: none; border-radius: 12px; cursor: pointer; margin: 10px 0;
         }
         #sendButton { background: #4CAF50; color: white; display: none; }
-        #sendButton:active { transform: scale(0.98); }
+        #sendButton:hover { background: #45a049; }
         .address {
-            font-family: monospace; font-size: 12px; word-break: break-all;
+            word-break: break-all; font-family: monospace; font-size: 12px;
             background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 5px;
         }
         #debug {
-            margin-top: 20px;
-            padding: 10px;
+            margin-top: 20px; padding: 10px;
             background: #f0f0f0;
             border-radius: 8px;
             font-size: 12px;
             font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
         }
     </style>
 </head>
@@ -123,235 +115,172 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
+        
+        // ✅ ПОКАЗЫВАЕМ И ОБРАБАТЫВАЕМ КНОПКУ "НАЗАД"
+        tg.BackButton.show();
+        tg.BackButton.onClick(function() {
+            console.log('🔙 Пользователь нажал "Назад", закрываем WebApp...');
+            tg.close();
+        });
 
         const status = document.getElementById('status');
         const sendButton = document.getElementById('sendButton');
         const debugDiv = document.getElementById('debug');
 
-        /**
-         * Функция логирования в debug блок
-         * @param {string} msg - Сообщение для логирования
-         */
-        function log(msg) {
-            console.log(msg);
-            debugDiv.textContent += msg + '\n';
-        }
-
-        log('🚀 WebApp запущен');
-
         // ============================================
-        // ЧТЕНИЕ И ВАЛИДАЦИЯ ПАРАМЕТРОВ ИЗ URL
+        // ПОЛУЧЕНИЕ ПАРАМЕТРОВ ИЗ URL
         // ============================================
         const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id');
-        const multiplier = parseInt(urlParams.get('multiplier'));
-        const amount = parseFloat(urlParams.get('amount'));  // ✅ НОВОЕ: получаем сумму
-        const externalId = urlParams.get('external_id');     // ✅ НОВОЕ: получаем UUID
+        const amount = urlParams.get('amount');
+        const user_id = urlParams.get('user_id');
+        const multiplier = urlParams.get('multiplier');
+        const external_id = urlParams.get('external_id');
 
-        log('👤 userId: ' + userId);
-        log('📊 Множитель из URL: ' + multiplier);
-        log('💰 Сумма из URL: ' + amount);
-        log('🆔 External ID: ' + externalId);
+        console.log("📝 URL Params:", { amount, user_id, multiplier, external_id });
 
-        // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Валидация параметров
-        if (!multiplier || isNaN(multiplier) || multiplier < 500 || multiplier > 2000) {
-            log('❌ ОШИБКА: Неверный множитель!');
-            status.textContent = "❌ Ошибка загрузки тарифа";
-            status.style.background = "#f44336";
-            status.style.color = "white";
-            setTimeout(() => tg.close(), 3000);
-            throw new Error("Invalid multiplier");
+        document.getElementById('amount').textContent = `${amount} TON`;
+        document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
+        document.getElementById('external-id').textContent = external_id;
+
+        // Отображение тарифа
+        const tariffValue = multiplier / 1000;
+        let tariffName = "";
+        if (multiplier == 1050) {
+            tariffName = "Активный тариф";
+        } else if (multiplier == 1030) {
+            tariffName = "Неактивный тариф";
+        } else {
+            tariffName = "Специальный тариф";
         }
-
-        if (!amount || isNaN(amount) || amount <= 0) {
-            log('❌ ОШИБКА: Неверная сумма!');
-            status.textContent = "❌ Ошибка загрузки суммы";
-            status.style.background = "#f44336";
-            status.style.color = "white";
-            setTimeout(() => tg.close(), 3000);
-            throw new Error("Invalid amount");
-        }
-
-        if (!externalId || !externalId.startsWith('id')) {
-            log('❌ ОШИБКА: Неверный external_id!');
-            status.textContent = "❌ Ошибка ID транзакции";
-            status.style.background = "#f44336";
-            status.style.color = "white";
-            setTimeout(() => tg.close(), 3000);
-            throw new Error("Invalid external_id");
-        }
-
-        log('✅ Все параметры валидированы');
-
-        const AMOUNT_NANO = String(amount * 1e9);
-
-        // ============================================
-        // ОПРЕДЕЛЕНИЕ И ОТОБРАЖЕНИЕ ТАРИФА
-        // ============================================
-        const tariffName = multiplier === 1050 ? "Активные пользователи" : "Неактивные пользователи";
-        const tariffMultiplierText = `Коэффициент: × ${(multiplier / 1000).toFixed(2)}`;
 
         document.getElementById('tariff-name').textContent = tariffName;
-        document.getElementById('tariff-multiplier').textContent = tariffMultiplierText;
-        document.getElementById('recipient').textContent = CONTRACT_ADDRESS;
-        document.getElementById('amount').textContent = `${amount} TON`;
-        document.getElementById('external-id').textContent = externalId;
+        document.getElementById('tariff-multiplier').textContent = `×${tariffValue.toFixed(2)} к сумме депозита`;
 
-        log('📍 Адрес контракта: ' + CONTRACT_ADDRESS);
-        log('💰 Сумма платежа: ' + amount + ' TON');
+        // ============================================
+        // TON CONNECT ИНИЦИАЛИЗАЦИЯ
+        // ============================================
+        let tonConnectUI;
+        let walletAddress = null;
 
-        /**
-         * Создание payload для транзакции с external_id
-         * @param {number} multiplier - Множитель (1030 или 1050)
-         * @param {string} externalId - UUID в формате "ida3b5c7"
-         * @returns {string} Base64 encoded BoC payload
-         */
-        function createPayload(multiplier, externalId) {
-            try {
-                log('📦 Создание payload...');
-                log('   multiplier: ' + multiplier);
-                log('   externalId: ' + externalId);
-                
-                // Создаём Cell с OP кодом, множителем и external_id
-                const cell = beginCell()
-                    .storeUint(257293713, 32)  // OP код CreateDeposit
-                    .storeUint(multiplier, 16)   // Множитель
-                    .storeRef(                   // ✅ НОВОЕ: external_id в ref
-                        beginCell()
-                            .storeStringTail(externalId)
-                        .endCell()
-                    )
-                    .endCell();
-                
-                const boc = cell.toBoc();
-                const base64 = boc.toString('base64');
-                
-                log('✅ Payload создан: ' + base64.substring(0, 50) + '...');
-                log('📏 Длина BoC: ' + boc.length + ' байт');
-                
-                return base64;
-            } catch (error) {
-                log('❌ Ошибка создания payload: ' + error.message);
-                throw error;
-            }
+        try {
+            tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+                manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
+                buttonRootId: 'ton-connect'
+            });
+
+            tonConnectUI.uiOptions = {
+                twaReturnUrl: 'https://t.me/blgpaybot'
+            };
+
+            console.log("✅ TonConnect инициализирован");
+
+            tonConnectUI.onStatusChange((wallet) => {
+                if (wallet) {
+                    walletAddress = wallet.account.address;
+                    status.textContent = `✅ Кошелёк подключён: ${walletAddress.slice(0,8)}...${walletAddress.slice(-6)}`;
+                    status.style.background = "#4CAF50";
+                    sendButton.style.display = "block";
+                    console.log("✅ Кошелёк подключён:", walletAddress);
+                    
+                    // ✅ СКРЫВАЕМ КНОПКУ "НАЗАД" ПОСЛЕ ПОДКЛЮЧЕНИЯ
+                    tg.BackButton.hide();
+                } else {
+                    status.textContent = "Подключите кошелёк для оплаты";
+                    status.style.background = "var(--tg-theme-secondary-bg-color, #f0f0f0)";
+                    sendButton.style.display = "none";
+                    walletAddress = null;
+                    console.log("❌ Кошелёк отключён");
+                    
+                    // ✅ ПОКАЗЫВАЕМ КНОПКУ "НАЗАД" ЕСЛИ ОТКЛЮЧЕН
+                    tg.BackButton.show();
+                }
+            });
+
+        } catch (error) {
+            console.error("❌ Ошибка инициализации TonConnect:", error);
+            status.textContent = "❌ Ошибка инициализации";
+            status.style.background = "#FF9800";
         }
 
         // ============================================
-        // ИНИЦИАЛИЗАЦИЯ TON CONNECT
+        // ОТПРАВКА ТРАНЗАКЦИИ
         // ============================================
-        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-            manifestUrl: `https://${GITHUB_USERNAME}.github.io/ton-payment-bot/tonconnect-manifest.json`,
-            buttonRootId: 'ton-connect'
-        });
-
-        /**
-         * Обработчик изменения статуса подключения кошелька
-         */
-        tonConnectUI.onStatusChange(wallet => {
-            if (wallet) {
-                const shortAddr = wallet.account.address.slice(0, 4) + "..." + wallet.account.address.slice(-4);
-                status.textContent = `✅ Кошелёк подключён: ${shortAddr}`;
-                status.style.background = "#4CAF50";
-                status.style.color = "white";
-                sendButton.style.display = "block";
-                log('💎 Кошелёк подключён: ' + shortAddr);
-            } else {
-                status.textContent = "Подключите кошелёк для оплаты";
-                status.style.background = "var(--tg-theme-secondary-bg-color, #f0f0f0)";
-                status.style.color = "var(--tg-theme-text-color, #000)";
-                sendButton.style.display = "none";
+        sendButton.addEventListener('click', async () => {
+            if (!walletAddress) {
+                alert('❌ Кошелёк не подключён!');
+                return;
             }
-        });
 
-        // ============================================
-        // ОБРАБОТЧИК КНОПКИ ОТПРАВКИ ПЛАТЕЖА
-        // ============================================
-        sendButton.addEventListener("click", async () => {
+            console.log("💸 Начало отправки транзакции...");
+            status.textContent = "⏳ Отправка транзакции...";
+            sendButton.disabled = true;
+
             try {
-                sendButton.disabled = true;
-                status.textContent = "⏳ Подтвердите транзакцию в кошельке...";
-                status.style.background = "#FF9800";
-                status.style.color = "white";
+                const amountNano = Math.floor(parseFloat(amount) * 1e9);
+                console.log(`💰 Сумма: ${amount} TON = ${amountNano} nanoTON`);
 
-                log('📝 Начало транзакции...');
-                log('💰 Сумма: ' + amount + ' TON');
-                log('📊 Множитель: ' + multiplier);
-                log('🆔 External ID: ' + externalId);
+                // ✅ Формируем комментарий с external_id
+                const commentCell = beginCell()
+                    .storeUint(0, 32)
+                    .storeStringTail(external_id)
+                    .endCell();
 
-                // ✅ Создаём payload с external_id
-                const payload = createPayload(multiplier, externalId);
+                console.log("📝 Комментарий:", external_id);
 
-                // Формируем транзакцию
                 const transaction = {
-                    validUntil: Math.floor(Date.now() / 1000) + 600,
-                    messages: [{
-                        address: CONTRACT_ADDRESS,
-                        amount: AMOUNT_NANO,
-                        payload: payload
-                    }]
+                    validUntil: Math.floor(Date.now() / 1000) + 300,
+                    messages: [
+                        {
+                            address: CONTRACT_ADDRESS,
+                            amount: amountNano.toString(),
+                            payload: commentCell.toBoc().toString('base64')
+                        }
+                    ]
                 };
 
-                log('📤 Отправка транзакции...');
+                console.log("📦 Транзакция:", JSON.stringify(transaction, null, 2));
+
                 const result = await tonConnectUI.sendTransaction(transaction);
+                console.log("✅ Транзакция отправлена:", result);
 
-                if (!result || !result.boc) {
-                    throw new Error("Не удалось получить данные транзакции");
-                }
+                const sentCell = Cell.fromBase64(result.boc);
+                const hash = sentCell.hash().toString('base64');
 
-                log('✅ Транзакция успешна!');
-                log('📦 BOC: ' + result.boc.substring(0, 50) + '...');
+                console.log("🔗 Hash транзакции:", hash);
 
-                // Получаем данные для отправки боту
-                const txHash = result.boc.slice(0, 20) + "...";
-                const walletAddress = tonConnectUI.account?.address || "неизвестно";
+                const data = {
+                    transactionTime: new Date().toLocaleString('ru-RU'),
+                    amount: amount,
+                    senderAddress: walletAddress,
+                    recipient: CONTRACT_ADDRESS,
+                    transactionHash: hash,
+                    multiplier: multiplier,
+                    external_id: external_id
+                };
 
-                const transactionTime = new Date().toLocaleString('ru-RU', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
+                console.log("📤 Отправка данных в бота:", JSON.stringify(data, null, 2));
 
-                status.textContent = "✅ Успешно! Закрытие через 1 сек...";
+                tg.sendData(JSON.stringify(data));
+
+                status.textContent = "✅ Оплата завершена! Закрываем...";
                 status.style.background = "#4CAF50";
 
-                // ✅ Отправляем данные боту с external_id
-                if (userId) {
-                    const dataToSend = JSON.stringify({
-                        transactionTime: transactionTime,
-                        amount: amount,               // ✅ Динамическая сумма
-                        senderAddress: walletAddress,
-                        recipient: CONTRACT_ADDRESS,
-                        transactionHash: txHash,
-                        multiplier: multiplier,
-                        external_id: externalId       // ✅ НОВОЕ: UUID
-                    });
-                    
-                    log('✅ Отправка данных боту...');
-                    log('📦 Данные: ' + dataToSend);
-                    tg.sendData(dataToSend);
-                    log('✅ Данные отправлены!');
-                    
-                    log('🔒 Закрытие WebApp через 1 секунду...');
-                    setTimeout(() => {
-                        tg.close();
-                    }, 1000);
-                } else {
-                    log('❌ ОШИБКА: userId отсутствует!');
-                    status.textContent = "❌ Ошибка: не удалось определить пользователя";
-                }
+                setTimeout(() => {
+                    console.log("🚪 Закрываем WebApp...");
+                    tg.close();
+                }, 1500);
 
             } catch (error) {
-                console.error("Ошибка:", error);
-                log('❌ ОШИБКА: ' + error.message);
+                console.error("❌ Ошибка транзакции:", error);
                 status.textContent = "❌ Ошибка: " + (error.message || "Транзакция отменена");
                 status.style.background = "#f44336";
-                status.style.color = "white";
                 sendButton.disabled = false;
+                
+                // ✅ ПОКАЗЫВАЕМ КНОПКУ "НАЗАД" ПРИ ОШИБКЕ
+                tg.BackButton.show();
             }
         });
+
     </script>
 </body>
 </html>
