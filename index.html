@@ -123,6 +123,16 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
+        
+        // ✅ ПОКАЗЫВАЕМ КНОПКУ "НАЗАД"
+        tg.BackButton.show();
+        tg.BackButton.onClick(function() {
+            console.log('🔙 Пользователь нажал "Назад", отменяем оплату...');
+            // Отправляем данные об отмене в бота
+            tg.sendData(JSON.stringify({ cancelled: true }));
+            // Закрываем WebApp
+            tg.close();
+        });
 
         const status = document.getElementById('status');
         const sendButton = document.getElementById('sendButton');
